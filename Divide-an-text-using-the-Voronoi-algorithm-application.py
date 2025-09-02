@@ -107,7 +107,7 @@ class VoronoiApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("1D Voronoi — конвертер (числа или текст)")
-        self.geometry("820x620")
+        self.geometry("900x660")
         self.create_widgets()
 
     def create_widgets(self):
@@ -155,6 +155,17 @@ class VoronoiApp(tk.Tk):
         cmb = ttk.Combobox(frm_params, textvariable=self.init_var, values=["quantile", "random"], state="readonly", width=10)
         cmb.grid(row=1, column=5, sticky="w", padx=(6, 12), pady=(6, 0))
 
+        # Опция: единый текст
+        frm_text_opt = ttk.Frame(self)
+        frm_text_opt.pack(fill="x", padx=pad, pady=(6, 0))
+        self.single_text_var = tk.BooleanVar(value=False)
+        chk_single = ttk.Checkbutton(frm_text_opt, text="Вывести как единый текст", variable=self.single_text_var)
+        chk_single.pack(side="left")
+        ttk.Label(frm_text_opt, text="Разделитель:").pack(side="left", padx=(12, 6))
+        self.sep_var = tk.StringVar(value="space")
+        cmb_sep = ttk.Combobox(frm_text_opt, textvariable=self.sep_var, values=["space", "comma", "newline"], state="readonly", width=8)
+        cmb_sep.pack(side="left")
+
         # Кнопки
         frm_buttons = ttk.Frame(self)
         frm_buttons.pack(fill="x", padx=pad, pady=(12, 0))
@@ -166,7 +177,10 @@ class VoronoiApp(tk.Tk):
         btn_convert.pack(side="left", padx=(0, 6))
 
         btn_preview = ttk.Button(frm_buttons, text="Предпросмотр (не сохранять)", command=self.on_preview)
-        btn_preview.pack(side="left")
+        btn_preview.pack(side="left", padx=(6, 6))
+
+        btn_copy = ttk.Button(frm_buttons, text="Копировать в буфер", command=self.copy_result_to_clipboard)
+        btn_copy.pack(side="left")
 
         # Результат
         lbl_res = ttk.Label(self, text="Результат:")
@@ -209,7 +223,24 @@ class VoronoiApp(tk.Tk):
             return p
         return Path.home()
 
-    def format_output(self, clusters: List[List[Any]], seeds: np.ndarray) -> str:
+    def format_output(self, clusters: List[List[Any]], seeds: np.ndarray, single_text: bool = False, sep_key: str = "space") -> str:
+        """Форматирует вывод. Если single_text=True, возвращает объединённую строку (без строки Seeds).
+        sep_key in {"space","comma","newline"} определяет разделитель.
+        """
+        if single_text:
+            # flatten clusters preserving кластерный порядок
+            flat: List[str] = []
+            for c in clusters:
+                for x in c:
+                    flat.append(self._item_plain(x))
+            if sep_key == "space":
+                sep = " "
+            elif sep_key == "comma":
+                sep = ", "
+            else:
+                sep = "\n"
+            return sep.join(flat)
+
         lines = []
         lines.append(f"Seeds: {np.array2string(seeds, precision=6, separator=', ')}")
         for i, c in enumerate(clusters):
@@ -221,6 +252,16 @@ class VoronoiApp(tk.Tk):
     def _format_item(self, x: Any) -> str:
         if isinstance(x, str):
             return f'"{x}"'
+        if isinstance(x, float):
+            if x.is_integer():
+                return str(int(x))
+            return str(x)
+        return str(x)
+
+    def _item_plain(self, x: Any) -> str:
+        """Plain text representation (без кавычек), для объединённого вывода."""
+        if isinstance(x, str):
+            return x
         if isinstance(x, float):
             if x.is_integer():
                 return str(int(x))
@@ -277,6 +318,9 @@ class VoronoiApp(tk.Tk):
             messagebox.showerror("Ошибка параметров", "Проверьте параметры n_seeds и lloyd_iters")
             return
 
+        single = self.single_text_var.get()
+        sep_key = self.sep_var.get()
+
         if not is_numeric:
             tokens: List[str] = parsed  # type: ignore
             if len(tokens) == 0:
@@ -295,7 +339,7 @@ class VoronoiApp(tk.Tk):
                     return
             clusters, seeds = partition_voronoi(vals, n, lloyd_iters=lloyd, init_method=init, original_items=None)
 
-        out = self.format_output(clusters, seeds)
+        out = self.format_output(clusters, seeds, single_text=single, sep_key=sep_key)
         try:
             path = self.save_to_desktop(out)
         except Exception as e:
@@ -318,6 +362,9 @@ class VoronoiApp(tk.Tk):
             messagebox.showerror("Ошибка параметров", "Проверьте параметры n_seeds и lloyd_iters")
             return
 
+        single = self.single_text_var.get()
+        sep_key = self.sep_var.get()
+
         if not is_numeric:
             tokens: List[str] = parsed  # type: ignore
             map_method = self.map_var.get()
@@ -327,7 +374,7 @@ class VoronoiApp(tk.Tk):
             vals: List[float] = parsed  # type: ignore
             clusters, seeds = partition_voronoi(vals, n, lloyd_iters=lloyd, init_method=init, original_items=None)
 
-        out = self.format_output(clusters, seeds)
+        out = self.format_output(clusters, seeds, single_text=single, sep_key=sep_key)
         self._show_result(out)
 
     def _show_result(self, text: str):
@@ -335,6 +382,15 @@ class VoronoiApp(tk.Tk):
         self.txt_result.delete("1.0", "end")
         self.txt_result.insert("1.0", text)
         self.txt_result.config(state="disabled")
+
+    def copy_result_to_clipboard(self):
+        self.clipboard_clear()
+        txt = self.txt_result.get("1.0", "end").rstrip("\n")
+        if not txt:
+            messagebox.showinfo("Пусто", "Нет текста для копирования")
+            return
+        self.clipboard_append(txt)
+        messagebox.showinfo("Скопировано", "Текст скопирован в буфер обмена")
 
 
 if __name__ == "__main__":
