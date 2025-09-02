@@ -5,23 +5,15 @@ import os
 from pathlib import Path
 from datetime import datetime
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 import hashlib
 
 
-def partition_voronoi(values: List[float],
-                      n_seeds: int,
-                      lloyd_iters: int = 0,
-                      init_method: str = "random",
-                      original_items: List[Any] = None) -> Tuple[List[List[Any]], np.ndarray]:
-    """
-    Разбивает список чисел values на n_seeds наборов методом 1D-Voronoi с опциональными итерациями Ллойда.
-    Если переданы original_items, то итоговые кластеры будут содержать элементы original_items
-    в том же порядке, что и входные значения values.
-
-    Возвращает:
-      clusters - список длины n_seeds; каждый элемент — список элементов original_items (или чисел)
-      seeds    - массив позиций сайтов (float), длины n_seeds
+def partition_voronoi(values: List[float], n_seeds: int, lloyd_iters: int = 0, init_method: str = "random", original_items: List[Any] = None) -> Tuple[List[List[Any]], np.ndarray]:
+    """Разбивает список чисел values на n_seeds наборов методом 1D-Voronoi с опциональными итерациями Ллойда.
+    Если переданы original_items, то итоговые кластеры будут содержать элементы original_items в том же порядке, что и входные значения values.
+    Возвращает: clusters - список длины n_seeds; каждый элемент — список элементов original_items (или чисел)
+    seeds - массив позиций сайтов (float), длины n_seeds
     """
     if n_seeds <= 0:
         raise ValueError("n_seeds must be >= 1")
@@ -65,16 +57,14 @@ def partition_voronoi(values: List[float],
     return clusters, seeds
 
 
-# ----------------- Helper: mapping текста -> числа -----------------
+# -----------------Helper: mapping текста->числа-----------------
 
 def map_tokens_to_positions(tokens: List[str], method: str) -> List[float]:
-    """
-    Преобразует список строк tokens в список чисел (позиции) в соответствии с методом:
-      - "index"        : позиция в исходном порядке (0..n-1)
-      - "length"       : длина строки (кол-во символов)
-      - "alphabetical" : ранг в сортированном наборе уникальных токенов (0..m-1)
-      - "hash"         : детерминированный числовой хеш, нормализованный
-
+    """Преобразует список строк tokens в список чисел (позиции) в соответствии с методом:
+    - "index": позиция в исходном порядке (0..n-1)
+    - "length": длина строки (кол-во символов)
+    - "alphabetical": ранг в сортированном наборе уникальных токенов (0..m-1)
+    - "hash": детерминированный числовой хеш, нормализованный
     Возвращает список float той же длины, что и tokens.
     """
     if method == "index":
@@ -94,12 +84,13 @@ def map_tokens_to_positions(tokens: List[str], method: str) -> List[float]:
             vals.append(float(num))
         # нормализуем, чтобы числа не были слишком большими (масштаб останется)
         arr = np.array(vals, dtype=float)
-        # сдвинем и масштабируем в [0, 1] * len(tokens) для удобства
+        # сдвинем и масштабируем в [0,1] * len(tokens) для удобства
         if arr.max() == arr.min():
             return arr.tolist()
         norm = (arr - arr.min()) / (arr.max() - arr.min())
         # умножим на n_tokens чтобы получить разброс
         return (norm * float(len(tokens))).tolist()
+
     # fallback: try to map to float (если строки содержат числа)
     out = []
     for t in tokens:
@@ -110,7 +101,7 @@ def map_tokens_to_positions(tokens: List[str], method: str) -> List[float]:
     return out
 
 
-# ----------------- GUI -----------------
+# -----------------GUI-----------------
 
 class VoronoiApp(tk.Tk):
     def __init__(self):
@@ -121,11 +112,9 @@ class VoronoiApp(tk.Tk):
 
     def create_widgets(self):
         pad = 8
-
         # Ввод данных
         lbl_values = ttk.Label(self, text="Введите элементы (через пробел, запятую или новую строку):")
         lbl_values.pack(anchor="w", pady=(pad, 0), padx=pad)
-
         self.txt_values = tk.Text(self, height=8)
         self.txt_values.pack(fill="x", padx=pad)
         self.txt_values.insert("1.0", "apple banana cherry date eggfruit fig grape")
@@ -147,28 +136,31 @@ class VoronoiApp(tk.Tk):
         self.cmb_map.grid(row=0, column=3, sticky="w", padx=(6, 12))
 
         # Число сайтов
-        ttk.Label(frm_params, text="Количество кластеров (n_seeds):").grid(row=1, column=0, sticky="w", pady=(6,0))
+        ttk.Label(frm_params, text="Количество кластеров (n_seeds):").grid(row=1, column=0, sticky="w", pady=(6, 0))
         self.spin_n = tk.Spinbox(frm_params, from_=1, to=100, width=6)
         self.spin_n.delete(0, "end")
         self.spin_n.insert(0, "3")
-        self.spin_n.grid(row=1, column=1, sticky="w", padx=(6, 12), pady=(6,0))
+        self.spin_n.grid(row=1, column=1, sticky="w", padx=(6, 12), pady=(6, 0))
 
         # Итерации Ллойда
-        ttk.Label(frm_params, text="Итераций Ллойда:").grid(row=1, column=2, sticky="w", pady=(6,0))
+        ttk.Label(frm_params, text="Итераций Ллойда:").grid(row=1, column=2, sticky="w", pady=(6, 0))
         self.spin_lloyd = tk.Spinbox(frm_params, from_=0, to=100, width=6)
         self.spin_lloyd.delete(0, "end")
         self.spin_lloyd.insert(0, "10")
-        self.spin_lloyd.grid(row=1, column=3, sticky="w", padx=(6, 12), pady=(6,0))
+        self.spin_lloyd.grid(row=1, column=3, sticky="w", padx=(6, 12), pady=(6, 0))
 
         # Метод инициализации
-        ttk.Label(frm_params, text="Метод инициализации:").grid(row=1, column=4, sticky="w", pady=(6,0))
+        ttk.Label(frm_params, text="Метод инициализации:").grid(row=1, column=4, sticky="w", pady=(6, 0))
         self.init_var = tk.StringVar(value="quantile")
         cmb = ttk.Combobox(frm_params, textvariable=self.init_var, values=["quantile", "random"], state="readonly", width=10)
-        cmb.grid(row=1, column=5, sticky="w", padx=(6, 12), pady=(6,0))
+        cmb.grid(row=1, column=5, sticky="w", padx=(6, 12), pady=(6, 0))
 
         # Кнопки
         frm_buttons = ttk.Frame(self)
         frm_buttons.pack(fill="x", padx=pad, pady=(12, 0))
+
+        btn_load = ttk.Button(frm_buttons, text="Загрузить из файла...", command=self.load_file)
+        btn_load.pack(side="left", padx=(0, 6))
 
         btn_convert = ttk.Button(frm_buttons, text="Конвертировать и сохранить на рабочий стол", command=self.on_convert)
         btn_convert.pack(side="left", padx=(0, 6))
@@ -179,7 +171,6 @@ class VoronoiApp(tk.Tk):
         # Результат
         lbl_res = ttk.Label(self, text="Результат:")
         lbl_res.pack(anchor="w", pady=(12, 0), padx=pad)
-
         self.txt_result = tk.Text(self, height=12)
         self.txt_result.pack(fill="both", expand=True, padx=pad, pady=(0, pad))
         self.txt_result.config(state="disabled")
@@ -245,13 +236,39 @@ class VoronoiApp(tk.Tk):
             f.write(content)
         return path
 
+    def load_file(self):
+        """Открывает диалог выбора текстового файла и подставляет его содержимое в поле ввода."""
+        file_path = filedialog.askopenfilename(title="Выберите текстовый файл", initialdir=str(Path.home()), filetypes=[("Text files", "*.txt"), ("All files", "*")])
+        if not file_path:
+            return
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = f.read()
+        except UnicodeDecodeError:
+            # попытка в кодировке cp1251 (часто для русскоязычных файлов)
+            try:
+                with open(file_path, "r", encoding="cp1251") as f:
+                    data = f.read()
+            except Exception as e:
+                messagebox.showerror("Ошибка чтения файла", f"Не удалось прочитать файл: {e}")
+                return
+        except Exception as e:
+            messagebox.showerror("Ошибка чтения файла", f"Не удалось прочитать файл: {e}")
+            return
+
+        # Вставляем в текстовое поле (заменяем содержимое)
+        self.txt_values.delete("1.0", "end")
+        self.txt_values.insert("1.0", data)
+        # Если файл содержит текст, переводим тип в "text"
+        self.data_type_var.set("text")
+        self.on_data_type_change()
+
     def on_convert(self):
         try:
             parsed, is_numeric = self.parse_input()
         except ValueError as e:
             messagebox.showerror("Ошибка ввода", str(e))
             return
-
         try:
             n = int(self.spin_n.get())
             lloyd = int(self.spin_lloyd.get())
@@ -279,13 +296,11 @@ class VoronoiApp(tk.Tk):
             clusters, seeds = partition_voronoi(vals, n, lloyd_iters=lloyd, init_method=init, original_items=None)
 
         out = self.format_output(clusters, seeds)
-
         try:
             path = self.save_to_desktop(out)
         except Exception as e:
             messagebox.showerror("Ошибка сохранения", f"Не удалось сохранить файл: {e}")
             return
-
         self._show_result(out)
         messagebox.showinfo("Сохранено", f"Файл сохранён:\n{path}")
 
@@ -295,7 +310,6 @@ class VoronoiApp(tk.Tk):
         except ValueError as e:
             messagebox.showerror("Ошибка ввода", str(e))
             return
-
         try:
             n = int(self.spin_n.get())
             lloyd = int(self.spin_lloyd.get())
