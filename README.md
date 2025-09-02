@@ -1,0 +1,1 @@
+# Divide-an-text-using-the-Voronoi-algorithm-python
